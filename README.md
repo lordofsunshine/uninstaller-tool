@@ -4,6 +4,9 @@ A powerful and user-friendly application for managing and uninstalling programs 
 
 <img alt="banner" src="https://cdn.glitch.global/64e004e3-d81d-4b3a-9fb1-c899982de83f/b9b742e9-8926-40c1-89d8-0da9618ae1f0.image.png?v=1735136414857">
 
+> [!NOTE]
+> The link to download the program: [click](https://github.com/lordofsunshine/uninstaller-tool/releases/download/v.0.0.1/main.exe)
+
 ## Features
 
 - [x] List all installed programs
