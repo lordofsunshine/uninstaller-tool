@@ -33,7 +33,7 @@ pip install PyQt6 psutil
 
 1. Clone this repository:
   ```bash
-   git clone https://github.com/yourusername/uninstaller-tool.git
+   git clone https://github.com/lordofsunshine/uninstaller-tool.git
    ```
 
 2. Navigate to the project directory:
