@@ -1,6 +1,6 @@
 # 🗿 Uninstaller Tool
 
-A powerful and user-friendly application for managing and uninstalling programs on Windows.
+A powerful and user-friendly application for managing and uninstalling programs on Windows. *This is my first program, I hope for your support.*
 
 <img alt="banner" src="https://cdn.glitch.global/64e004e3-d81d-4b3a-9fb1-c899982de83f/b9b742e9-8926-40c1-89d8-0da9618ae1f0.image.png?v=1735136414857">
 
