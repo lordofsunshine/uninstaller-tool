@@ -68,11 +68,11 @@ To create a standalone executable file, follow these steps:
    pyinstaller --onefile --windowed --icon=icon.ico uninstaller_tool.py
    ```
 
-   This will create a single executable file in the \`dist\` folder.
+   This will create a single executable file in the `dist` folder.
 
-3. (Optional) To include the icon, make sure you have an \`icon.ico\` file in the same directory as the script.
+3. (Optional) To include the icon, make sure you have an `icon.ico` file in the same directory as the script.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the *MIT License* - see the [LICENSE](LICENSE) file for details.
 
