@@ -2,7 +2,7 @@
 
 A powerful and user-friendly application for managing and uninstalling programs on Windows. *This is my first program, I hope for your support.*
 
-<img alt="banner" src="https://cdn.glitch.global/64e004e3-d81d-4b3a-9fb1-c899982de83f/b9b742e9-8926-40c1-89d8-0da9618ae1f0.image.png?v=1735136414857">
+<img alt="banner" src="https://cdn.glitch.global/4ae4fbec-cbe7-491c-b8b9-57879c9f0e5d/0aa05300-1d0f-48f5-b4bc-daceafa0209f.image.png?v=1738338009508">
 
 > [!NOTE]
 > The link to download the program: [click](https://github.com/lordofsunshine/uninstaller-tool/releases/download/v.0.0.1/main.exe)
@@ -43,7 +43,7 @@ pip install PyQt6 psutil
 
 3. Install the required dependencies:
    ```bash
-   pip install -r requirements.txt
+   Run setup.bat
    ```
 
 ## Usage
@@ -51,7 +51,7 @@ pip install PyQt6 psutil
 Run the application:
 
 ```bash
-python uninstaller_tool.py
+python main.py
 ```
 
 ## 🔑 Compiling to Executable
@@ -65,7 +65,7 @@ To create a standalone executable file, follow these steps:
 
 2. Compile the application:
    ```bash
-   pyinstaller --onefile --windowed --icon=icon.ico uninstaller_tool.py
+   pyinstaller --onefile --windowed --icon=icon.ico main.py
    ```
 
    This will create a single executable file in the `dist` folder.
