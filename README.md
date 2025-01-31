@@ -5,7 +5,7 @@ A powerful and user-friendly application for managing and uninstalling programs 
 <img alt="banner" src="https://cdn.glitch.global/4ae4fbec-cbe7-491c-b8b9-57879c9f0e5d/0aa05300-1d0f-48f5-b4bc-daceafa0209f.image.png?v=1738338009508">
 
 > [!NOTE]
-> The link to download the program: [click](https://github.com/lordofsunshine/uninstaller-tool/releases/download/v.0.0.1/main.exe)
+> The link to download the program: [click](https://github.com/lordofsunshine/uninstaller-tool/releases/download/v.0.0.2/UninstallerTool.exe)
 
 ## Features
 
