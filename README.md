@@ -11,7 +11,7 @@
   </p>
 </div>
 
-Download the program: https://github.com/lordofsunshine/uninstaller-tool/releases/download/v.0.0.2.1/UninstallerTool.exe
+Download program: https://github.com/lordofsunshine/uninstaller-tool/releases/download/v.0.0.2.1/UninstallerTool.exe
 
 ---
 
