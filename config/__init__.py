@@ -1,5 +1,6 @@
 from .constants import COLORS, REFRESH_ICON, UNINSTALL_ICON, CHART_ICON, PREVIEW_ICON, DOWN_ARROW_ICON
 from .styles import ENHANCED_STYLE
+from .version import APP_ID, APP_NAME, APP_VERSION
 
 __all__ = [
     'COLORS',
@@ -8,5 +9,8 @@ __all__ = [
     'CHART_ICON',
     'PREVIEW_ICON',
     'DOWN_ARROW_ICON',
-    'ENHANCED_STYLE'
+    'ENHANCED_STYLE',
+    'APP_ID',
+    'APP_NAME',
+    'APP_VERSION'
 ]

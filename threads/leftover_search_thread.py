@@ -15,6 +15,6 @@ class LeftoverSearchThread(QThread):
             self.progress.emit("Searching for leftover files and registry entries...")
             leftovers = search_leftover_files(self.program['name'])
             self.finished.emit(leftovers)
-        except Exception as e:
-            self.error.emit(f"Error searching leftovers: {str(e)}")
+        except (OSError, ValueError) as exc:
+            self.error.emit(f"Error searching leftovers: {exc}")
             self.finished.emit({'files': [], 'registry': []})

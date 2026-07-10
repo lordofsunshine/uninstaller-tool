@@ -1,9 +1,10 @@
 from .theme_manager import ThemeManager
-from .helpers import create_svg_icon, format_size, format_install_date
+from .helpers import create_svg_icon, format_size, format_install_date, resource_path
 
 __all__ = [
     'ThemeManager',
     'create_svg_icon',
     'format_size',
-    'format_install_date'
+    'format_install_date',
+    'resource_path'
 ]

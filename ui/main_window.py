@@ -5,12 +5,12 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QIcon, QAction
 from config.constants import COLORS, REFRESH_ICON, UNINSTALL_ICON, CHART_ICON, PREVIEW_ICON
 from config.styles import ENHANCED_STYLE
-from utils.theme_manager import ThemeManager
-from utils.helpers import create_svg_icon, format_install_date
-from core.registry import get_installed_programs
-from core.file_operations import remove_leftovers
+from config.version import APP_NAME, APP_VERSION
+from utils.helpers import create_svg_icon, format_install_date, format_size, resource_path
 from threads.uninstall_thread import UninstallThread
 from threads.leftover_search_thread import LeftoverSearchThread
+from threads.program_load_thread import ProgramLoadThread
+from threads.cleanup_thread import CleanupThread
 from ui.program_item import ProgramItem
 from ui.disk_space_dialog import DiskSpaceDialog
 from ui.file_preview_dialog import FilePreviewDialog
@@ -18,13 +18,14 @@ from ui.file_preview_dialog import FilePreviewDialog
 class UninstallerTool(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.theme_manager = ThemeManager()
-        self.setWindowTitle("Uninstaller Tool")
+        self.programs = []
+        self.uninstalled_programs = []
+        self.setWindowTitle(f"{APP_NAME}  {APP_VERSION}")
+        self.setWindowIcon(QIcon(resource_path("assets/app_icon.ico")))
         self.setMinimumSize(600, 400)
         self.resize(800, 600)
         self.center_window()
         self.setup_ui()
-        self.uninstalled_programs = []
 
     def center_window(self):
         from PyQt6.QtWidgets import QApplication
@@ -175,8 +176,6 @@ class UninstallerTool(QMainWindow):
         self.apply_modern_style()
         self.refresh_program_list()
         
-        self.resizeEvent = self.on_resize
-
     def apply_modern_style(self):
         self.setStyleSheet(ENHANCED_STYLE % {
             'background': COLORS['background'],
@@ -195,17 +194,37 @@ class UninstallerTool(QMainWindow):
 
     def refresh_program_list(self):
         self.clear_program_list()
-        programs = get_installed_programs()
-        
+        self.status_label.setText("Loading installed programs...")
+        self.progress_bar.setRange(0, 0)
+        self.refresh_button.setEnabled(False)
+        self.uninstall_button.setEnabled(False)
+        self.program_load_thread = ProgramLoadThread(self)
+        self.program_load_thread.loaded.connect(self.populate_program_list)
+        self.program_load_thread.error.connect(self.program_load_failed)
+        self.program_load_thread.start()
+
+    def populate_program_list(self, programs):
+        self.programs = programs
         for program in programs:
             item = ProgramItem(program)
             item.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-            item.customContextMenuRequested.connect(lambda pos, p=program: self.show_context_menu(pos, p))
+            item.customContextMenuRequested.connect(
+                lambda pos, p=program, widget=item: self.show_context_menu(pos, p, widget)
+            )
             self.program_list_layout.addWidget(item)
-            item.show()
-        
-        self.status_label.setText("")
+        self.sort_programs()
+        self.filter_programs()
+        self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
+        self.status_label.setText(f"{len(programs)} programs found")
+        self.refresh_button.setEnabled(True)
+        self.uninstall_button.setEnabled(True)
+
+    def program_load_failed(self, message):
+        self.progress_bar.setRange(0, 100)
+        self.status_label.setText("Could not load installed programs")
+        self.refresh_button.setEnabled(True)
+        QMessageBox.critical(self, "Registry error", message)
 
     def clear_program_list(self):
         while self.program_list_layout.count():
@@ -248,18 +267,17 @@ class UninstallerTool(QMainWindow):
             self.uninstall_thread.progress.connect(self.update_progress)
             self.uninstall_thread.finished.connect(self.uninstall_finished)
             self.uninstall_thread.error.connect(self.show_error)
-            self.uninstall_thread.silent_failed.connect(self.handle_silent_fail)
             self.uninstall_thread.start()
             
             self.refresh_button.setEnabled(False)
             self.uninstall_button.setEnabled(False)
 
-    def update_progress(self, value, status, status_type):
+    def update_progress(self, value, status, status_type, program_name):
         self.progress_bar.setValue(value)
         self.status_label.setText(status)
         for i in range(self.program_list_layout.count()):
             item = self.program_list_layout.itemAt(i).widget()
-            if isinstance(item, ProgramItem) and item.checkbox.text() in status:
+            if isinstance(item, ProgramItem) and item.program.get("name") == program_name:
                 item.set_status(status_type)
 
     def uninstall_finished(self):
@@ -410,52 +428,48 @@ class UninstallerTool(QMainWindow):
         button_layout.addWidget(remove_button)
         layout.addLayout(button_layout)
         
-        remove_button.clicked.connect(lambda: [self.remove_leftovers_action(leftovers), dialog.accept()])
+        def start_cleanup():
+            remove_button.setEnabled(False)
+            cancel_button.setEnabled(False)
+            title.setText("Removing leftover items...")
+            self.cleanup_thread = CleanupThread(leftovers, self)
+            self.cleanup_thread.completed.connect(lambda result: self.cleanup_finished(result, dialog))
+            self.cleanup_thread.failed.connect(lambda message: self.cleanup_failed(message, dialog))
+            self.cleanup_thread.start()
+
+        remove_button.clicked.connect(start_cleanup)
         cancel_button.clicked.connect(dialog.reject)
         
         return dialog
 
-    def remove_leftovers_action(self, leftovers):
-        try:
-            result = remove_leftovers(leftovers)
-            removed_files = result['removed_files']
-            removed_registry = result['removed_registry']
-            errors = result['errors']
-            
-            self.status_label.setText(f"Cleanup completed: {removed_files} files, {removed_registry} registry entries removed")
-            self.progress_bar.setValue(self.progress_bar.maximum())
-            
-            QTimer.singleShot(2000, lambda: [
-                self.refresh_program_list(),
-                self.status_label.setText(""),
-                self.progress_bar.setValue(0)
-            ])
+    def cleanup_finished(self, result, dialog):
+        removed_files = result["removed_files"]
+        removed_registry = result["removed_registry"]
+        scheduled = result["scheduled_files"]
+        errors = result["errors"]
+        summary = f"Removed locations: {removed_files}\nRegistry entries: {removed_registry}"
+        if scheduled:
+            summary += f"\nLocked items scheduled after restart: {scheduled}"
 
-            if errors:
-                error_msg = f"Cleanup completed with {len(errors)} errors:\n\n" + "\n".join(errors[:5])
-                if len(errors) > 5:
-                    error_msg += f"\n... and {len(errors) - 5} more errors"
-                QMessageBox.warning(self, "Cleanup Complete with Errors", error_msg)
-            else:
-                QMessageBox.information(self, "Cleanup Complete", f"Successfully removed {removed_files} files and {removed_registry} registry entries.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error during cleanup: {str(e)}")
+        self.status_label.setText("Cleanup completed")
+        self.progress_bar.setValue(self.progress_bar.maximum())
+        dialog.accept()
+        if errors:
+            details = "\n".join(errors[:5])
+            if len(errors) > 5:
+                details += f"\n... and {len(errors) - 5} more"
+            QMessageBox.warning(self, "Cleanup completed with errors", f"{summary}\n\n{details}")
+        else:
+            QMessageBox.information(self, "Cleanup completed", summary)
+
+    def cleanup_failed(self, message, dialog):
+        dialog.reject()
+        QMessageBox.critical(self, "Cleanup failed", f"Could not complete cleanup:\n{message}")
 
     def show_error(self, error_message):
         QMessageBox.critical(self, "Error", error_message)
 
-    def handle_silent_fail(self, program):
-        uninstall_string = program.get('uninstall_string', '')
-        reply = QMessageBox.question(
-            self,
-            "Silent Uninstall Failed",
-            f"Failed to perform silent uninstall for {program['name']}.\n\nUninstall command: {uninstall_string}\n\nDo you want to try regular uninstall?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            self.uninstall_program(program, silent=False)
-
-    def show_context_menu(self, pos, program):
+    def show_context_menu(self, pos, program, widget):
         context_menu = QMenu(self)
         
         info_action = QAction("Program Information", self)
@@ -466,7 +480,7 @@ class UninstallerTool(QMainWindow):
         uninstall_action.triggered.connect(lambda: self.uninstall_program(program))
         context_menu.addAction(uninstall_action)
         
-        global_pos = self.sender().mapToGlobal(pos)
+        global_pos = widget.mapToGlobal(pos)
         context_menu.exec(global_pos)
 
     def show_program_info(self, program):
@@ -515,7 +529,7 @@ class UninstallerTool(QMainWindow):
         add_info_row("Uninstall Command:", program.get('uninstall_string', ''), True)
         
         if program.get('size'):
-            add_info_row("Size:", f"{int(program['size']) / 1024 / 1024:.2f} MB")
+            add_info_row("Size:", format_size(int(program['size']) * 1024))
         
         layout.addWidget(info_container)
         
@@ -557,8 +571,9 @@ class UninstallerTool(QMainWindow):
             self.uninstall_thread.progress.connect(self.update_progress)
             self.uninstall_thread.finished.connect(self.uninstall_finished)
             self.uninstall_thread.error.connect(self.show_error)
-            self.uninstall_thread.silent_failed.connect(self.handle_silent_fail)
             self.uninstall_thread.start()
+            self.progress_bar.setRange(0, 1)
+            self.progress_bar.setValue(0)
             
             self.refresh_button.setEnabled(False)
             self.uninstall_button.setEnabled(False)
@@ -588,10 +603,10 @@ class UninstallerTool(QMainWindow):
             self.program_list_layout.addWidget(item)
 
     def show_disk_space(self):
-        dialog = DiskSpaceDialog(get_installed_programs(), self)
+        dialog = DiskSpaceDialog(self.programs, self)
         dialog.exec()
 
-    def on_resize(self, event):
+    def resizeEvent(self, event):
         width = self.width()
         
         if width < 600:

@@ -1,7 +1,7 @@
 # 🗿 Uninstaller Tool
 
 <div align="center">
-  <img alt="banner" src="https://cdn.glitch.global/4ae4fbec-cbe7-491c-b8b9-57879c9f0e5d/0aa05300-1d0f-48f5-b4bc-daceafa0209f.image.png?v=1738338009508">
+  <img alt="banner" src="https://i.ibb.co/TMNN3sZZ/image.png">
   
   <p><strong>Powerful and user-friendly application for managing and uninstalling programs on Windows</strong></p>
   
@@ -11,7 +11,7 @@
   </p>
 </div>
 
-Download program: https://github.com/lordofsunshine/uninstaller-tool/releases/download/v.0.0.2.1/UninstallerTool.exe
+Download program: https://github.com/lordofsunshine/uninstaller-tool/releases/download/v.0.0.3/UninstallerTool.exe
 
 ---
 
@@ -20,14 +20,13 @@ Download program: https://github.com/lordofsunshine/uninstaller-tool/releases/do
 ### What's New? 🆕
 
 **Latest Updates:**
-- ✅ **Adaptive window sizing** - Works perfectly on small screens
-- ✅ **Smart file detection** - More accurate leftover file detection
-- ✅ **Administrator rights check** - Automatic restart with admin privileges
-- ✅ **Better error handling** - No more crashes, detailed error messages
-- ✅ **Improved uninstall process** - Supports all types of uninstallers (MSI, EXE, GUID)
-- ✅ **Real-time status updates** - Always know what's happening
-- ✅ **Fixed size calculations** - Correct program sizes, no more fake 2TB displays
-- ✅ **Enhanced UI** - Responsive buttons that adapt to screen size
+- ✅ **Safer uninstall commands** - Commands are parsed and started without an unsafe command shell
+- ✅ **Reliable MSI and silent removal** - Correct `/I` to `/X` conversion, quiet commands, fallbacks, and restart exit codes
+- ✅ **Locked-file cleanup** - Protected files are retried and can be removed safely after the next Windows restart
+- ✅ **Safer leftover detection** - System folders, drive roots, links, and unrelated directories are protected
+- ✅ **Accurate program data** - Registry duplicates, versions, install locations, dates, and size units are handled correctly
+- ✅ **Responsive interface** - Registry loading, file scanning, uninstalling, and cleanup run outside the UI thread
+- ✅ **Clearer results** - Cleanup reports removed locations, registry entries, deferred items, and actionable errors separately
 
 ### Features
 
@@ -78,7 +77,7 @@ To create a standalone executable:
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed --icon=icon.ico main.py
+powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
 ---
@@ -88,14 +87,13 @@ pyinstaller --onefile --windowed --icon=icon.ico main.py
 ### Что нового? 🆕
 
 **Последние обновления:**
-- ✅ **Адаптивные размеры окна** - Отлично работает на маленьких экранах
-- ✅ **Умное определение файлов** - Более точное обнаружение остаточных файлов
-- ✅ **Проверка прав администратора** - Автоматический перезапуск с правами админа
-- ✅ **Улучшенная обработка ошибок** - Никаких крашей, детальные сообщения об ошибках
-- ✅ **Улучшенный процесс удаления** - Поддержка всех типов деинсталляторов (MSI, EXE, GUID)
-- ✅ **Обновления статуса в реальном времени** - Всегда знайте, что происходит
-- ✅ **Исправлены расчеты размеров** - Правильные размеры программ, никаких фальшивых 2ТБ
-- ✅ **Улучшенный интерфейс** - Адаптивные кнопки под размер экрана
+- ✅ **Безопасный запуск деинсталляторов** - Команды разбираются и запускаются без небезопасной командной оболочки
+- ✅ **Надёжное MSI- и тихое удаление** - Исправлены `/I` → `/X`, тихие команды, резервный запуск и коды перезагрузки
+- ✅ **Очистка занятых файлов** - Защищённые файлы удаляются повторно или безопасно ставятся на удаление после перезапуска Windows
+- ✅ **Безопасный поиск остатков** - Системные папки, корни дисков, ссылки и посторонние каталоги защищены от удаления
+- ✅ **Точные данные программ** - Корректно обрабатываются дубликаты реестра, версии, пути, даты и единицы размера
+- ✅ **Отзывчивый интерфейс** - Чтение реестра, поиск файлов, удаление и очистка выполняются вне UI-потока
+- ✅ **Понятный результат очистки** - Отдельно показаны удалённые пути, записи реестра, отложенные объекты и ошибки
 
 ### Возможности
 
@@ -146,7 +144,7 @@ pyinstaller --onefile --windowed --icon=icon.ico main.py
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed --icon=icon.ico main.py
+powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
 ---

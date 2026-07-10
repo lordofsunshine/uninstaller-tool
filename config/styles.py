@@ -12,18 +12,17 @@ QWidget {
 }
 
 QLineEdit {
-    padding: 12px;
+    padding: 10px 12px;
     background-color: %(surface)s;
-    border: none;
+    border: 1px solid transparent;
     border-radius: 8px;
     font-size: 14px;
     color: %(text)s;
-    margin: 0 8px;
 }
 
 QLineEdit:focus {
     background-color: #FFFFFF;
-    border: 2px solid %(primary)s;
+    border: 1px solid %(primary)s;
 }
 
 QPushButton {
@@ -43,6 +42,11 @@ QPushButton:hover {
 
 QPushButton:pressed {
     background-color: %(primary_pressed)s;
+}
+
+QPushButton:disabled {
+    background-color: %(border)s;
+    color: %(text_secondary)s;
 }
 
 QCheckBox {
@@ -145,5 +149,17 @@ QToolBar {
 QLabel {
     color: %(text)s;
     font-size: 14px;
+}
+
+QComboBox {
+    border: 1px solid %(border)s;
+    border-radius: 8px;
+    padding: 8px 12px;
+    background-color: %(background)s;
+    color: %(text)s;
+}
+
+QComboBox:focus {
+    border-color: %(primary)s;
 }
 """

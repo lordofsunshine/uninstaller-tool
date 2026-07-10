@@ -121,7 +121,7 @@ class DiskSpaceDialog(QDialog):
         
         publisher_sizes = {}
         for program in self.programs:
-            publisher = program.get('publisher', 'Unknown')
+            publisher = program.get('publisher') or 'Unknown'
             size = float(program.get('size', 0) or 0)
             if publisher in publisher_sizes:
                 publisher_sizes[publisher] += size

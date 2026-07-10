@@ -1,7 +1,23 @@
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton, QHBoxLayout, QWidget
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from core.file_operations import find_program_files
 from utils.helpers import format_size
+
+
+class FileScanThread(QThread):
+    scanned = pyqtSignal(list, int)
+    failed = pyqtSignal(str)
+
+    def __init__(self, program, parent=None):
+        super().__init__(parent)
+        self.program = program
+
+    def run(self):
+        try:
+            files, total_size = find_program_files(self.program, self.isInterruptionRequested)
+            self.scanned.emit(files, total_size)
+        except OSError as exc:
+            self.failed.emit(str(exc))
 
 class FilePreviewDialog(QDialog):
     def __init__(self, program, parent=None):
@@ -43,19 +59,12 @@ class FilePreviewDialog(QDialog):
             }
         """)
         
-        files_info, total_size = find_program_files(self.program)
-        
-        if not files_info:
-            no_files_label = QLabel("No files found for this program")
-            no_files_label.setStyleSheet("color: #666; padding: 20px;")
-            no_files_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            list_layout.addWidget(no_files_label)
-        else:
-            files_info.sort(key=lambda x: x[1], reverse=True)
-            for file_path, size in files_info:
-                item = QListWidgetItem(f"{file_path} ({format_size(size)})")
-                self.file_list.addItem(item)
-            list_layout.addWidget(self.file_list)
+        self.loading_label = QLabel("Scanning program files...")
+        self.loading_label.setStyleSheet("color: #666; padding: 20px;")
+        self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        list_layout.addWidget(self.loading_label)
+        list_layout.addWidget(self.file_list)
+        self.file_list.hide()
         
         layout.addWidget(list_container)
         
@@ -72,16 +81,19 @@ class FilePreviewDialog(QDialog):
         info_layout = QHBoxLayout(info_container)
         info_layout.setContentsMargins(12, 8, 12, 8)
         
-        info_layout.addWidget(QLabel(f"Total files: {len(files_info)}"))
+        self.file_count_label = QLabel("Total files: —")
+        info_layout.addWidget(self.file_count_label)
         info_layout.addStretch()
-        info_layout.addWidget(QLabel(f"Total size: {format_size(total_size)}"))
+        self.total_size_label = QLabel("Total size: —")
+        info_layout.addWidget(self.total_size_label)
         
         layout.addWidget(info_container)
         
         button_layout = QHBoxLayout()
-        close_button = QPushButton("Close")
-        close_button.setMinimumWidth(120)
-        close_button.setStyleSheet("""
+        self.close_button = QPushButton("Close")
+        self.close_button.setMinimumWidth(120)
+        self.close_button.setEnabled(False)
+        self.close_button.setStyleSheet("""
             QPushButton {
                 background-color: #0066FF;
                 color: white;
@@ -94,7 +106,37 @@ class FilePreviewDialog(QDialog):
                 background-color: #0052CC;
             }
         """)
-        close_button.clicked.connect(self.accept)
+        self.close_button.clicked.connect(self.accept)
         button_layout.addStretch()
-        button_layout.addWidget(close_button)
+        button_layout.addWidget(self.close_button)
         layout.addLayout(button_layout)
+
+        self.scan_thread = FileScanThread(self.program, self)
+        self.scan_thread.scanned.connect(self.show_scan_results)
+        self.scan_thread.failed.connect(self.show_scan_error)
+        self.scan_thread.start()
+
+    def show_scan_results(self, files_info, total_size):
+        self.loading_label.hide()
+        if files_info:
+            self.file_list.show()
+            for file_path, size in sorted(files_info, key=lambda item: item[1], reverse=True):
+                self.file_list.addItem(QListWidgetItem(f"{file_path} ({format_size(size)})"))
+        else:
+            self.loading_label.setText("No program files could be identified safely")
+            self.loading_label.show()
+        self.file_count_label.setText(f"Total files: {len(files_info)}")
+        self.total_size_label.setText(f"Total size: {format_size(total_size)}")
+        self.close_button.setEnabled(True)
+
+    def show_scan_error(self, message):
+        self.loading_label.setText(f"Could not scan files: {message}")
+        self.close_button.setEnabled(True)
+
+    def closeEvent(self, event):
+        if self.scan_thread.isRunning():
+            self.scan_thread.requestInterruption()
+            if not self.scan_thread.wait(2000):
+                event.ignore()
+                return
+        super().closeEvent(event)
