@@ -405,20 +405,33 @@ QMessageBox QPushButton:default:hover {
 """
 
 
+_arrow_cache = {}
+
+
 def _arrow_image(colors):
     # qss can't draw triangles, so we give it a small svg file instead
     import os
     import tempfile
 
+    key = colors.get('text_secondary', '#888')
+    if key in _arrow_cache and os.path.isfile(_arrow_cache[key]):
+        return _arrow_cache[key]
     svg = (
         '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" '
         'fill="none" stroke="%s" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">'
-        '<path d="M6 9l6 6 6-6"/></svg>' % colors['text_secondary']
+        '<path d="M6 9l6 6 6-6"/></svg>' % key
     )
-    path = os.path.join(tempfile.gettempdir(), f"combo_arrow_{colors['text_secondary'].lstrip('#')}.svg")
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(svg)
-    return path.replace("\\", "/")
+    try:
+        path = os.path.join(tempfile.gettempdir(), f"combo_arrow_{key.lstrip('#')}.svg")
+        # reuse existing file with same content, avoid rewrite on every theme switch
+        if not os.path.isfile(path):
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(svg)
+        result = path.replace("\\", "/")
+    except OSError:
+        return ""
+    _arrow_cache[key] = result
+    return result
 
 
 def build_style(colors):

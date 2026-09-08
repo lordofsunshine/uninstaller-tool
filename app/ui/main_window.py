@@ -1,8 +1,10 @@
 import re
+import time
 
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                                QCheckBox, QProgressBar, QLabel, QMessageBox, QLineEdit,
-                               QScrollArea, QMenu, QComboBox, QDialog, QApplication, QSplitter)
+                               QScrollArea, QMenu, QComboBox, QDialog, QApplication, QSplitter,
+                               QListWidget, QListWidgetItem)
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon, QAction
 
@@ -17,6 +19,10 @@ from app.ui.details import DetailPanel
 from app.ui.dialogs import DiskSpaceDialog, FilePreviewDialog, InfoDialog
 
 
+# whole leftover phase budget, then give up and refresh the list
+LEFTOVERS_TIMEOUT = 40
+
+
 class UninstallerTool(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -24,6 +30,7 @@ class UninstallerTool(QMainWindow):
         self.pending_leftovers = []
         self.selected_item = None
         self._closing = False
+        self._leftovers_deadline = 0.0
         self.setWindowTitle(APP_NAME)
         self.setWindowIcon(QIcon(resource_path("assets/app_icon.ico")))
         self.setMinimumSize(860, 560)
@@ -32,8 +39,9 @@ class UninstallerTool(QMainWindow):
         self.setup_ui()
 
     def center(self):
-        screen = QApplication.primaryScreen().geometry()
-        self.move((screen.width() - self.width()) // 2, (screen.height() - self.height()) // 2)
+        screen = QApplication.primaryScreen().availableGeometry()
+        self.move((screen.width() - self.width()) // 2 + screen.x(),
+                  (screen.height() - self.height()) // 2 + screen.y())
 
     def setup_ui(self):
         central = QWidget()
@@ -153,6 +161,10 @@ class UninstallerTool(QMainWindow):
         set_dark_title_bar(self, self.is_dark)
 
     def refresh_programs(self):
+        # remember selection so refresh doesn't wipe it
+        self._saved_checked = {p["name"] for p in self.checked_programs()}
+        self._saved_selected = self.selected_item.program["name"] if self.selected_item else None
+        self._saved_scroll = self.scroll.verticalScrollBar().value()
         self.clear_list()
         self.set_summary("Loading installed programs…")
         self.progress.setVisible(True)
@@ -168,6 +180,8 @@ class UninstallerTool(QMainWindow):
 
     def populate(self, programs):
         self.programs = programs
+        saved_checked = getattr(self, "_saved_checked", set())
+        saved_selected = getattr(self, "_saved_selected", None)
         for program in programs:
             item = ProgramItem(program)
             item.clicked.connect(self.on_item_clicked)
@@ -175,14 +189,22 @@ class UninstallerTool(QMainWindow):
             item.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             item.customContextMenuRequested.connect(
                 lambda pos, p=program, w=item: self.show_context_menu(pos, p, w))
+            if program.get("name") in saved_checked:
+                item.checkbox.setChecked(True)
             self.list_layout.addWidget(item)
+            if saved_selected and program.get("name") == saved_selected:
+                self.on_item_clicked(item)
         self.sort_programs()
         self.filter_programs()
+        self.update_summary()
+        if getattr(self, "_saved_scroll", None) is not None:
+            self.scroll.verticalScrollBar().setValue(self._saved_scroll)
+        self._saved_checked = set()
+        self._saved_selected = None
         self.progress.setVisible(False)
         total_gb = sum(float(p.get('size', 0) or 0) for p in programs) / (1024 * 1024)
         size_text = f"{total_gb:.1f} GB installed" if total_gb >= 1 else "small footprint"
         self.subtitle.setText(f"{len(programs)} programs found   ·   {size_text}")
-        self.set_summary("No programs selected")
         self.refresh_btn.setEnabled(True)
         self.uninstall_btn.setEnabled(True)
         self.disk_btn.setEnabled(True)
@@ -212,13 +234,15 @@ class UninstallerTool(QMainWindow):
         self.details.set_program(item.program)
 
     def filter_programs(self):
-        query = self.search.text().lower()
+        query = self.search.text().casefold()
         visible = 0
         for i in range(self.list_layout.count()):
             item = self.list_layout.itemAt(i).widget()
             if not isinstance(item, ProgramItem):
                 continue
-            match = query in item.name_label.text().lower()
+            # match name and publisher, not just the visible label
+            haystack = f"{item.program.get('name', '')} {item.program.get('publisher', '')}".casefold()
+            match = query in haystack
             item.setVisible(match)
             visible += int(match)
         if self.selected_item and not self.selected_item.isVisible():
@@ -241,8 +265,11 @@ class UninstallerTool(QMainWindow):
             self.set_summary("No programs selected")
             return
         total_kb = sum(float(p.get('size', 0) or 0) for p in checked)
-        size_text = format_size(total_kb * 1024) if total_kb > 0 else "unknown size"
-        self.summary.setText(f"<b>{len(checked)}</b> selected   ·   ~{size_text} to be freed")
+        if total_kb > 0:
+            self.summary.setText(f"<b>{len(checked)}</b> selected   ·   ~{format_size(total_kb * 1024)} to be freed")
+        else:
+            # size unknown, show no guess at all
+            self.summary.setText(f"<b>{len(checked)}</b> selected")
 
     def set_summary(self, text):
         self.summary.setText(text)
@@ -268,7 +295,15 @@ class UninstallerTool(QMainWindow):
             if answer == QMessageBox.StandardButton.Cancel:
                 return None
             if answer == QMessageBox.StandardButton.Yes:
-                kill_processes(procs)
+                result = kill_processes(procs)
+                # verify the processes are really gone, don't fail silently
+                still_running = find_running_processes(program)
+                if still_running:
+                    details = "; ".join(result.get("errors", [])[:3])
+                    QMessageBox.warning(
+                        self, "Could not terminate",
+                        f"{program['name']} is still running and will be skipped.\n{details}")
+                    continue
                 ready.append(program)
         return ready
 
@@ -324,27 +359,54 @@ class UninstallerTool(QMainWindow):
         self.refresh_btn.setEnabled(True)
         self.uninstall_btn.setEnabled(True)
         self.set_summary("Uninstallation completed")
+        reboot = list(getattr(self.worker, "reboot_required", []))
+        if reboot:
+            QMessageBox.information(
+                self, "Restart required",
+                "These programs requested a restart to finish removal:\n\n"
+                + "\n".join(reboot[:10])
+                + "\n\nPlease restart Windows when convenient.")
         self.pending_leftovers = list(self.worker.uninstalled)
+        self._leftovers_deadline = time.monotonic() + LEFTOVERS_TIMEOUT
         if self.pending_leftovers:
             QTimer.singleShot(2000, self.check_next_leftovers)
         else:
             self.set_summary("No programs were uninstalled")
             QTimer.singleShot(2000, self.refresh_programs)
 
+    def _abort_leftovers(self, message):
+        # stop current scan if any, drop the queue, act as if done
+        worker = getattr(self, 'leftovers_worker', None)
+        if worker is not None and worker.isRunning():
+            worker.requestInterruption()
+        self.pending_leftovers = []
+        self.set_summary(message)
+        self.progress.setVisible(False)
+        self.refresh_programs()
+
     def check_next_leftovers(self):
         if self._closing or not self.pending_leftovers:
             return
-        if hasattr(self, 'leftovers_worker') and self.leftovers_worker.isRunning():
-            self.leftovers_worker.blockSignals(True)
-            self.leftovers_worker.wait(500)
+        if time.monotonic() >= self._leftovers_deadline:
+            self._abort_leftovers("Leftover search timed out")
+            return
+        worker = getattr(self, 'leftovers_worker', None)
+        if worker is not None and worker.isRunning():
+            # previous scan still running, retry a bit later
+            QTimer.singleShot(1000, self.check_next_leftovers)
+            return
         self.leftovers_worker = LeftoversThread(self.pending_leftovers[0], self)
         self.leftovers_worker.finished.connect(self.leftovers_worker.deleteLater)
         self.leftovers_worker.done.connect(self.on_leftovers_found)
         self.leftovers_worker.start()
-        self.set_summary("Searching for leftover files and registry entries…")
+        remaining = max(0, int(self._leftovers_deadline - time.monotonic()))
+        self.set_summary(f"Searching for leftover files and registry entries… ({remaining}s left)")
 
     def on_leftovers_found(self, leftovers):
         if self._closing or not self.pending_leftovers:
+            return
+        if time.monotonic() >= self._leftovers_deadline:
+            self._abort_leftovers("Leftover search timed out")
             return
         if leftovers['files'] or leftovers['registry']:
             self.set_summary("Leftover files found")
@@ -376,38 +438,66 @@ class UninstallerTool(QMainWindow):
             box = QListWidget()
             box.setMinimumHeight(140)
             for entry in items:
-                box.addItem(entry)
+                item = QListWidgetItem(entry)
+                # let the user uncheck items they want to keep
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                item.setCheckState(Qt.CheckState.Checked)
+                box.addItem(item)
             return box
 
-        if leftovers['files']:
+        files_box = make_list(leftovers['files']) if leftovers['files'] else None
+        reg_box = make_list(leftovers['registry']) if leftovers['registry'] else None
+
+        if files_box is not None:
             label = QLabel(f"Files ({len(leftovers['files'])} items)")
             label.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {self.colors['primary']}; background: transparent;")
             layout.addWidget(label)
-            layout.addWidget(make_list(leftovers['files']))
+            layout.addWidget(files_box)
 
-        if leftovers['registry']:
+        if reg_box is not None:
             label = QLabel(f"Registry entries ({len(leftovers['registry'])} items)")
             label.setStyleSheet(f"font-size: 12px; font-weight: 600; color: {self.colors['primary']}; background: transparent;")
             layout.addWidget(label)
-            layout.addWidget(make_list(leftovers['registry']))
+            layout.addWidget(reg_box)
+
+        hint = QLabel("Uncheck items you want to keep.")
+        hint.setStyleSheet(f"font-size: 12px; color: {self.colors['text_secondary']}; background: transparent;")
+        layout.addWidget(hint)
 
         buttons = QHBoxLayout()
         buttons.addStretch()
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setObjectName("secondaryButton")
-        remove_btn = QPushButton("Remove all")
+        remove_btn = QPushButton("Remove selected")
         remove_btn.setObjectName("primaryButton")
         buttons.addWidget(cancel_btn)
         buttons.addWidget(remove_btn)
         layout.addLayout(buttons)
 
+        def checked_entries(box):
+            if box is None:
+                return []
+            out = []
+            for i in range(box.count()):
+                item = box.item(i)
+                if item.checkState() == Qt.CheckState.Checked:
+                    out.append(item.text())
+            return out
+
         def start_cleanup():
+            selected = {
+                "files": checked_entries(files_box),
+                "registry": checked_entries(reg_box),
+            }
+            if not selected["files"] and not selected["registry"]:
+                dialog.reject()
+                return
             remove_btn.setEnabled(False)
             cancel_btn.setEnabled(False)
             title.setText("Removing leftover items…")
             if hasattr(self, 'cleanup_worker') and self.cleanup_worker.isRunning():
                 self.cleanup_worker.wait(500)
-            self.cleanup_worker = CleanupThread(leftovers, self)
+            self.cleanup_worker = CleanupThread(selected, self)
             self.cleanup_worker.finished.connect(self.cleanup_worker.deleteLater)
             self.cleanup_worker.done.connect(lambda result: self.on_cleanup_done(result, dialog))
             self.cleanup_worker.failed.connect(lambda msg: self.on_cleanup_failed(msg, dialog))
@@ -420,7 +510,8 @@ class UninstallerTool(QMainWindow):
     def on_cleanup_done(self, result, dialog):
         summary = f"Removed locations: {result['removed_files']}\nRegistry entries: {result['removed_registry']}"
         if result['scheduled_files']:
-            summary += f"\nLocked items scheduled after restart: {result['scheduled_files']}"
+            summary += (f"\nLocked items scheduled after restart: {result['scheduled_files']}"
+                        "\nPlease restart Windows to finish removal.")
         self.set_summary("Cleanup completed")
         self.progress.setVisible(False)
         dialog.accept()
@@ -464,7 +555,6 @@ class UninstallerTool(QMainWindow):
         ready = self.confirm_running([program])
         if not ready:
             return
-        self.silent.setChecked(self.silent.isChecked())
         self.start_uninstall(ready)
 
     def sort_programs(self):
@@ -473,18 +563,20 @@ class UninstallerTool(QMainWindow):
                  if isinstance((w := self.list_layout.itemAt(i).widget()), ProgramItem)]
 
         if mode == "Name":
-            items.sort(key=lambda x: x.program['name'].lower())
+            items.sort(key=lambda x: x.program['name'].casefold())
         elif mode == "Size":
             items.sort(key=lambda x: float(x.program.get('size', 0) or 0), reverse=True)
         elif mode == "Install Date":
             items.sort(key=lambda x: x.program.get('install_date', ''), reverse=True)
         elif mode == "Publisher":
-            items.sort(key=lambda x: (x.program.get('publisher', '') or '').lower())
+            items.sort(key=lambda x: (x.program.get('publisher', '') or '').casefold())
 
         while self.list_layout.count():
             self.list_layout.takeAt(0)
         for item in items:
             self.list_layout.addWidget(item)
+        # keep current search filter after reordering
+        self.filter_programs()
 
     def closeEvent(self, event):
         self._closing = True

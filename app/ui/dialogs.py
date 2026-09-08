@@ -1,12 +1,20 @@
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import Qt, QThread, QTimer, Signal
+from PySide6.QtGui import QTextOption
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QListWidget,
-                               QListWidgetItem, QPushButton, QGroupBox, QWidget, QSizePolicy)
+                               QListWidgetItem, QPushButton, QGroupBox, QWidget, QSizePolicy,
+                               QFrame, QTextEdit)
 
 from app.core.files import find_program_files
 from app.utils import format_size, format_install_date, program_icon
 
 
 def _fmt_kb(size_kb):
+    try:
+        size_kb = float(size_kb or 0)
+    except (TypeError, ValueError):
+        size_kb = 0
+    if size_kb <= 0:
+        return ""
     mb = size_kb / 1024
     return f"{mb / 1024:.2f} GB" if mb >= 1024 else f"{mb:.1f} MB"
 
@@ -17,6 +25,7 @@ class DiskSpaceDialog(QDialog):
         self.setWindowTitle("Disk Space Usage")
         self.setMinimumSize(640, 540)
         self.resize(760, 640)
+        self._measure = None
         self._setup(programs, colors)
 
     def _setup(self, programs, colors):
@@ -29,9 +38,13 @@ class DiskSpaceDialog(QDialog):
         layout.addWidget(title)
 
         total_kb = sum(float(p.get('size', 0) or 0) for p in programs)
+        unknown = sum(1 for p in programs if not float(p.get('size', 0) or 0))
         stats_row = QHBoxLayout()
         stats_row.setSpacing(12)
-        for caption, value in [("Total size", _fmt_kb(total_kb)), ("Programs", str(len(programs)))]:
+        cards = [("Total size", _fmt_kb(total_kb)), ("Programs", str(len(programs)))]
+        if unknown:
+            cards.append(("No size info", str(unknown)))
+        for caption, value in cards:
             card = QWidget()
             card.setStyleSheet(f"QWidget {{ background-color: {colors['surface']}; border-radius: 14px; }}")
             box = QVBoxLayout(card)
@@ -47,13 +60,17 @@ class DiskSpaceDialog(QDialog):
         layout.addLayout(stats_row)
 
         top_group = QGroupBox("Top 10 largest programs")
-        top_list = QListWidget()
-        for p in sorted(programs, key=lambda x: float(x.get('size', 0) or 0), reverse=True)[:10]:
+        self.top_list = QListWidget()
+        self.top_list.setUniformItemSizes(True)
+        sized = [p for p in sorted(programs, key=lambda x: float(x.get('size', 0) or 0), reverse=True) if float(p.get('size', 0) or 0) > 0][:10]
+        for p in sized:
             kb = float(p.get('size', 0) or 0)
-            if kb > 0:
-                top_list.addItem(QListWidgetItem(f"{p['name']}   ·   {_fmt_kb(kb)}"))
+            self.top_list.addItem(QListWidgetItem(f"{p['name']}   ·   {_fmt_kb(kb)}"))
         top_box = QVBoxLayout(top_group)
-        top_box.addWidget(top_list)
+        top_box.addWidget(self.top_list)
+        self.measure_label = QLabel("Measuring real folder sizes…")
+        self.measure_label.setStyleSheet(f"font-size: 12px; color: {colors['text_secondary']}; background: transparent;")
+        top_box.addWidget(self.measure_label)
         layout.addWidget(top_group, 1)
 
         pub_group = QGroupBox("Usage by publisher")
@@ -78,6 +95,54 @@ class DiskSpaceDialog(QDialog):
         buttons.addWidget(close_btn)
         layout.addLayout(buttons)
 
+        # registry sizes are often missing, measure real folders in background
+        candidates = [p for p in programs if not float(p.get('size', 0) or 0) and p.get('install_location')][:15]
+        if candidates:
+            self._measure = _MeasureThread(candidates, self)
+            self._measure.measured.connect(self._show_measured)
+            self._measure.start()
+        else:
+            self.measure_label.hide()
+
+    def _show_measured(self, rows):
+        # rows: list of (name, bytes)
+        rows = [(n, b) for n, b in rows if b > 0]
+        if not rows:
+            self.measure_label.setText("Could not measure real sizes")
+            return
+        rows.sort(key=lambda r: r[1], reverse=True)
+        self.measure_label.setText("Real folder sizes (measured):")
+        for name, size in rows[:10]:
+            self.top_list.addItem(QListWidgetItem(f"{name}   ·   {format_size(size)} (on disk)"))
+
+    def closeEvent(self, event):
+        if self._measure is not None and self._measure.isRunning():
+            self._measure.requestInterruption()
+            self._measure.wait(1000)
+        super().closeEvent(event)
+
+
+class _MeasureThread(QThread):
+    measured = Signal(list)
+
+    def __init__(self, programs, parent=None):
+        super().__init__(parent)
+        self.programs = list(programs)
+
+    def run(self):
+        from app.core.files import measure_dir_size
+        out = []
+        for program in self.programs:
+            if self.isInterruptionRequested():
+                break
+            try:
+                size = measure_dir_size(program.get("install_location", ""), self.isInterruptionRequested)
+            except OSError:
+                size = 0
+            if size > 0:
+                out.append((program.get("name", "?"), size))
+        self.measured.emit(out)
+
 
 class _ScanThread(QThread):
     scanned = Signal(list, int)
@@ -96,6 +161,8 @@ class _ScanThread(QThread):
 
 
 class FilePreviewDialog(QDialog):
+    PREVIEW_LIMIT = 5000
+
     def __init__(self, program, colors, parent=None):
         super().__init__(parent)
         self.program = program
@@ -125,6 +192,7 @@ class FilePreviewDialog(QDialog):
         layout.addWidget(subtitle)
 
         self.file_list = QListWidget()
+        self.file_list.setUniformItemSizes(True)
 
         self.loading = QLabel("Scanning program files…")
         self.loading.setStyleSheet(f"color: {colors['text_secondary']}; padding: 24px;")
@@ -148,6 +216,11 @@ class FilePreviewDialog(QDialog):
 
         buttons = QHBoxLayout()
         buttons.addStretch()
+        self.cancel_btn = QPushButton("Cancel scan")
+        self.cancel_btn.setObjectName("secondaryButton")
+        self.cancel_btn.setMinimumWidth(120)
+        self.cancel_btn.clicked.connect(self._cancel_scan)
+        buttons.addWidget(self.cancel_btn)
         self.close_btn = QPushButton("Close")
         self.close_btn.setObjectName("secondaryButton")
         self.close_btn.setMinimumWidth(120)
@@ -156,12 +229,24 @@ class FilePreviewDialog(QDialog):
         buttons.addWidget(self.close_btn)
         layout.addLayout(buttons)
 
+    def _cancel_scan(self):
+        # stop background walk, keep dialog usable
+        if self.scan.isRunning():
+            self.scan.requestInterruption()
+            self.loading.setText("Cancelling scan…")
+            self.cancel_btn.setEnabled(False)
+
     def _show_results(self, files, total_size):
         self.loading.hide()
+        self.cancel_btn.setEnabled(False)
         if files:
             self.file_list.show()
-            for path, size in sorted(files, key=lambda i: i[1], reverse=True):
-                self.file_list.addItem(QListWidgetItem(f"{path}   ·   {format_size(size)}"))
+            ranked = sorted(files, key=lambda i: i[1], reverse=True)
+            shown = ranked[:self.PREVIEW_LIMIT]
+            # batch insert, much faster than one-by-one for big folders
+            self.file_list.addItems([f"{path}   ·   {format_size(size)}" for path, size in shown])
+            if len(ranked) > self.PREVIEW_LIMIT:
+                self.file_list.addItem(f"… and {len(ranked) - self.PREVIEW_LIMIT} more files (showing largest {self.PREVIEW_LIMIT})")
         else:
             self.loading.setText("No program files could be identified safely")
             self.loading.show()
@@ -172,6 +257,7 @@ class FilePreviewDialog(QDialog):
     def _show_error(self, message):
         self.loading.setText(f"Could not scan files: {message}")
         self.close_btn.setEnabled(True)
+        self.cancel_btn.setEnabled(False)
 
     def closeEvent(self, event):
         if self.scan.isRunning():
@@ -187,10 +273,47 @@ class InfoDialog(QDialog):
     def __init__(self, program, colors, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Program Information")
-        self.setMinimumSize(560, 300)
+        self.setMinimumSize(640, 300)
         self.setMaximumSize(900, 700)
         self.resize(640, 10)
+        self._fields = []
         self._setup(program, colors)
+        QTimer.singleShot(0, self._fit_fields)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_fields()
+
+    def _fit_fields(self, depth=0):
+        if not self.isVisible() or getattr(self, "_fitting", False) or depth > 2:
+            return
+        self._fitting = True
+        try:
+            import math
+            for edit in getattr(self, "_fields", []):
+                need = math.ceil(edit.document().size().height()) + 2
+                line = edit.fontMetrics().lineSpacing() + 4
+                edit.setFixedHeight(max(line, need))
+            self.layout().activate()
+            self.resize(self.width(), self.layout().totalMinimumSize().height())
+        finally:
+            self._fitting = False
+        if depth < 2:
+            QTimer.singleShot(40, lambda: self._fit_fields(depth + 1))
+
+    def _value_field(self, text, colors):
+        edit = QTextEdit()
+        edit.setReadOnly(True)
+        edit.setFrameStyle(QFrame.Shape.NoFrame)
+        edit.viewport().setAutoFillBackground(False)
+        edit.setStyleSheet(f"color: {colors['text']}; background: transparent; border: none;")
+        edit.setWordWrapMode(QTextOption.WrapMode.WrapAnywhere)
+        edit.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        edit.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        edit.document().setDocumentMargin(0)
+        edit.setPlainText(text or "Not available")
+        self._fields.append(edit)
+        return edit
 
     def _setup(self, program, colors):
         layout = QVBoxLayout(self)
@@ -213,8 +336,7 @@ class InfoDialog(QDialog):
 
         card = QWidget()
         card.setStyleSheet(f"QWidget {{ background-color: {colors['surface_alt']}; border-radius: 14px; }}")
-        # hug the content, don't stretch over the whole dialog
-        card.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        card.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         card_box = QVBoxLayout(card)
         card_box.setSpacing(10)
         card_box.setContentsMargins(18, 16, 18, 16)
@@ -234,11 +356,7 @@ class InfoDialog(QDialog):
             name = QLabel(label)
             name.setStyleSheet(f"color: {colors['text_secondary']}; font-weight: 600; min-width: 140px; background: transparent;")
             row.addWidget(name)
-            val = QLabel(value or "Not available")
-            val.setStyleSheet(f"color: {colors['text']}; background: transparent;")
-            val.setWordWrap(True)
-            val.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            row.addWidget(val, 1)
+            row.addWidget(self._value_field(value, colors), 1)
             card_box.addLayout(row)
 
         layout.addWidget(card)

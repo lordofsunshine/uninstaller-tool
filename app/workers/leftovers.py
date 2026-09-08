@@ -14,6 +14,8 @@ class LeftoversThread(QThread):
 
     def run(self):
         try:
-            self.done.emit(search_leftover_files(self.program['name']))
+            self.done.emit(search_leftover_files(
+                self.program.get('name', ''), self.program.get('publisher', ''),
+                self.program.get('package_family', '')))
         except (OSError, ValueError):
             self.done.emit({'files': [], 'registry': []})

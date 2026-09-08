@@ -87,7 +87,7 @@ class DetailPanel(QFrame):
             "Publisher": program.get('publisher') or "—",
             "Version": program.get('version') or "—",
             "Installed": format_install_date(program.get('install_date', '')) or "—",
-            "Size": format_size(size_kb * 1024) if size_kb else "—",
+            "Size": format_size(size_kb * 1024) if size_kb else "",
             "Location": program.get('install_location') or "—",
         }
         for field, value in data.items():

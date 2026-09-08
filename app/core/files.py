@@ -80,6 +80,27 @@ def _walk_files(directory, cancel_check=None):
     return files_info, total_size
 
 
+def measure_dir_size(directory, cancel_check=None, file_cap=30000):
+    # fast size-only walk for disk usage dialog, caps files to stay responsive
+    total = 0
+    counted = 0
+    if not _is_safe_program_directory(directory):
+        return 0
+    for root, directories, files in os.walk(directory, followlinks=False):
+        if cancel_check and cancel_check():
+            break
+        directories[:] = [item for item in directories if not os.path.islink(os.path.join(root, item))]
+        for filename in files:
+            try:
+                total += os.path.getsize(os.path.join(root, filename))
+            except OSError:
+                continue
+            counted += 1
+            if counted >= file_cap:
+                return total
+    return total
+
+
 def find_program_files(program, cancel_check=None):
     install_location = str(program.get("install_location") or "").strip()
     if _is_safe_program_directory(install_location):
@@ -139,24 +160,69 @@ def _find_program_directories(program_name, publisher):
     return _unique_existing_paths(matches)
 
 
-def search_leftover_files(program_name):
+def _extra_leftover_roots():
+    # temp, caches and shortcuts often survive uninstall
+    appdata = os.environ.get("APPDATA", "")
+    program_data = os.environ.get("ProgramData", "")
+    return _unique_existing_paths(
+        [
+            os.environ.get("TEMP"),
+            os.environ.get("TMP"),
+            os.path.join(program_data, "Package Cache"),
+            os.path.join(appdata, r"Microsoft\Windows\Start Menu\Programs"),
+            os.path.join(program_data, r"Microsoft\Windows\Start Menu\Programs"),
+            os.path.join(appdata, r"Microsoft\Windows\Start Menu\Programs\Startup"),
+            os.path.join(program_data, r"Microsoft\Windows\Start Menu\Programs\StartUp"),
+        ]
+    )
+
+
+def search_leftover_files(program_name, publisher="", package_family=""):
     normalized_name = _normalize_name(program_name)
+    normalized_pub = _normalize_name(publisher)
     files = []
+    if package_family:
+        # store app data lives one level deeper, plain scan never reaches it
+        packages_dir = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Packages", package_family)
+        if os.path.isdir(packages_dir):
+            files.append(os.path.normpath(packages_dir))
     if normalized_name:
-        for location in _program_roots():
+        for location in (*_program_roots(), *_extra_leftover_roots()):
             try:
                 entries = os.scandir(location)
             except OSError:
                 continue
             with entries:
                 for entry in entries:
-                    if _normalize_name(entry.name) == normalized_name:
+                    try:
+                        is_dir = entry.is_dir(follow_symlinks=False)
+                    except OSError:
+                        continue
+                    entry_clean = _normalize_name(entry.name)
+                    if entry_clean == normalized_name:
                         files.append(entry.path)
-    return {"files": sorted(set(files)), "registry": _search_leftover_registry(program_name)}
+                    elif normalized_pub and entry_clean == normalized_pub:
+                        # publisher folder may contain the program as subfolder
+                        try:
+                            subs = os.scandir(entry.path)
+                        except OSError:
+                            continue
+                        with subs:
+                            for sub in subs:
+                                try:
+                                    if sub.is_dir(follow_symlinks=False) and _normalize_name(sub.name) == normalized_name:
+                                        files.append(sub.path)
+                                except OSError:
+                                    continue
+                    elif len(normalized_name) >= 4 and normalized_name in entry_clean and is_dir:
+                        # versioned folders like "myapp_1.2.3"
+                        files.append(entry.path)
+    return {"files": sorted(set(files)), "registry": _search_leftover_registry(program_name, publisher)}
 
 
-def _search_leftover_registry(program_name):
+def _search_leftover_registry(program_name, publisher=""):
     normalized_name = _normalize_name(program_name)
+    normalized_pub = _normalize_name(publisher)
     if not normalized_name:
         return []
     registry_locations = (
@@ -173,14 +239,44 @@ def _search_leftover_registry(program_name):
         except OSError:
             continue
         with root:
-            for index in range(winreg.QueryInfoKey(root)[0]):
+            count = winreg.QueryInfoKey(root)[0]
+            for index in range(count):
                 try:
                     subkey_name = winreg.EnumKey(root, index)
                 except OSError:
                     continue
-                if _normalize_name(subkey_name) == normalized_name:
+                clean = _normalize_name(subkey_name)
+                if clean == normalized_name:
                     entries.append(f"{hive_name}\\{base_path}\\{subkey_name}")
+                elif len(normalized_name) >= 4 and normalized_name in clean:
+                    # catches versioned keys like "myapp_is1"
+                    entries.append(f"{hive_name}\\{base_path}\\{subkey_name}")
+                elif normalized_pub and clean == normalized_pub and base_path.endswith("SOFTWARE"):
+                    # settings often hide under vendor key, look one level deeper
+                    entries.extend(_match_vendor_subkeys(hive, hive_name, base_path, subkey_name, normalized_name))
     return sorted(set(entries))
+
+
+def _match_vendor_subkeys(hive, hive_name, base_path, vendor_key, normalized_name):
+    found = []
+    try:
+        vendor = winreg.OpenKey(hive, f"{base_path}\\{vendor_key}")
+    except OSError:
+        return found
+    with vendor:
+        try:
+            count = winreg.QueryInfoKey(vendor)[0]
+        except OSError:
+            return found
+        for index in range(count):
+            try:
+                child = winreg.EnumKey(vendor, index)
+            except OSError:
+                continue
+            clean = _normalize_name(child)
+            if clean == normalized_name or (len(normalized_name) >= 4 and normalized_name in clean):
+                found.append(f"{hive_name}\\{base_path}\\{vendor_key}\\{child}")
+    return found
 
 
 def _delete_registry_tree(hive, key_path):

@@ -1,7 +1,7 @@
 # app-wide constants, keep it small
 
 APP_NAME = "Uninstaller Tool"
-APP_VERSION = "0.0.4"
+APP_VERSION = "0.0.5"
 APP_ID = "UninstallerTool"
 
 UNINSTALL_ICON = """

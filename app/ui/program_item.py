@@ -46,6 +46,8 @@ class ProgramItem(QFrame):
 
     def _meta_text(self):
         parts = []
+        if self.program.get('store_app'):
+            parts.append("Store")
         if self.program.get('publisher'):
             parts.append(self.program['publisher'])
         if self.program.get('version'):

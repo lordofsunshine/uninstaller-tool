@@ -66,10 +66,11 @@ def format_size(size_bytes):
 
 
 def format_install_date(raw):
-    # registry stores dates as yyyymmdd
-    if raw and len(raw) == 8:
+    # registry stores dates as yyyymmdd, show unambiguous iso format
+    if raw and len(str(raw)) == 8:
         try:
-            return f"{raw[6:]}/{raw[4:6]}/{raw[:4]}"
+            text = str(raw)
+            return f"{text[:4]}-{text[4:6]}-{text[6:]}"
         except (TypeError, ValueError):
             return raw
     return raw

@@ -11,7 +11,7 @@
   </p>
 </div>
 
-Download program (Скачать программу): https://github.com/lordofsunshine/uninstaller-tool/releases/download/v.0.0.4/UninstallerTool.exe
+Download program (Скачать программу): https://github.com/lordofsunshine/uninstaller-tool/releases/download/v.0.0.5/UninstallerTool.exe
 
 ---
 
@@ -19,15 +19,12 @@ Download program (Скачать программу): https://github.com/lordofs
 
 ### What's New? 🆕
 
-**Latest Updates:**
-- 🎨 **Fresh new look** - The app got a complete visual makeover: clean program cards, rounded corners, and a modern light theme
-- 🌙 **Dark theme** - If Windows uses dark mode, the app now switches to dark too. Change your Windows theme and the app follows instantly
-- 📋 **Details panel** - Click any program to see its publisher, version, size, and install location in a side panel, with the program's icon shown right next to its name - no more digging through menus
-- 📊 **Selection summary** - The bottom bar always shows how many programs you've picked and how much disk space you'll free
-- 🛑 **Running program detection** - If a program is still running, the app will notice and offer to close it before uninstalling - no more failed uninstalls
-- ⏱️ **Live uninstall progress** - See elapsed time while a program is being removed, plus a thin progress line at the top of the window
-- 🐛 **Crash fix** - Fixed an app crash that could happen right after uninstalling, while searching for leftover files
-- ⚙️ **Under the hood** - Switched to a faster, more modern interface toolkit and cleaned up the project structure
+**Version 0.0.5:**
+- 🏪 **Microsoft Store apps** - Store apps are now available with proper names and can be uninstalled
+- 🧹 **Better leftover cleanup** - leftover search covers Store app data, temp and Start Menu locations; items can be removed selectively, and the search stops after 40 seconds (as a fallback)
+- 🛑 **Restart notice** - the app now tells you when a Windows restart is needed to finish removal
+- 📊 **Real folder sizes** - Disk usage now measures actual on-disk sizes when the registry reports none
+- 🐛 **Crash fix** - no more crashing when opening the leftover files dialog
 
 ### Features
 
@@ -87,15 +84,12 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 
 ### Что нового? 🆕
 
-**Последние обновления:**
-- 🎨 **Свежий дизайн** - Программа полностью преобразилась: аккуратные карточки программ, скруглённые углы и крутая светлая тема
-- 🌙 **Тёмная тема** - Если в Windows включена тёмная тема, программа тоже станет тёмной. Поменяете тему Windows - программа переключится сразу
-- 📋 **Панель сведений** - Кликните по программе, и справа появятся её издатель, версия, размер и дата установки, а рядом с названием - иконка программы. Больше не нужно искать в меню
-- 📊 **Сводка выбора** - Внизу всегда видно, сколько программ выбрано и сколько места на диске освободится
-- 🛑 **Обнаружение запущенных программ** - Если программа ещё работает, приложение это заметит и предложит её закрыть перед удалением - никаких неудачных удалений
-- ⏱️ **Прогресс в реальном времени** - Во время удаления видно, сколько времени прошло, а вверху окна тонкая полоска прогресса
-- 🐛 **Исправлен вылет** - Больше программа не вылетает сразу после удаления, когда идёт поиск остаточных файлов
-- ⚙️ **Под капотом** - Переход на более быстрый и современный интерфейс, проект приведён в порядок
+**Версия 0.0.5:**
+- 🏪 **Приложения Microsoft Store** - теперь доступны программы из Store с нормальными именами и их можно удалять
+- 🧹 **Лучшая очистка остатков** - поиск остатков охватывает данные Store-приложений, temp и меню «Пуск»; удалять можно выборочно, а сам поиск останавливается через 40 секунд (как fallback)
+- 🛑 **Напоминание о перезагрузке** - программа сообщает, когда для завершения удаления нужна перезагрузка Windows
+- 📊 **Реальные размеры папок** - анализ диска сам замеряет размер на диске, если в реестре его нет
+- 🐛 **Исправлен вылет** - больше не падает при открытии диалога с остаточными файлами
 
 ### Возможности
 

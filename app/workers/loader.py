@@ -13,6 +13,14 @@ class LoaderThread(QThread):
 
     def run(self):
         try:
-            self.loaded.emit(get_installed_programs())
+            programs = get_installed_programs()
+            # store apps are invisible in registry, merge them in
+            try:
+                from app.core.store import get_store_apps
+                if not self.isInterruptionRequested():
+                    programs = list(programs) + get_store_apps()
+            except (OSError, ValueError):
+                pass
+            self.loaded.emit(programs)
         except OSError as exc:
             self.failed.emit(str(exc))
