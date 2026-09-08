@@ -1,7 +1,7 @@
 # 🗿 Uninstaller Tool
 
 <div align="center">
-  <img alt="banner" src="https://i.ibb.co/27FVZd93/image.png">
+  <img alt="banner" src="https://i.ibb.co/BXQJ2W4/image.png">
   
   <p><strong>Powerful and user-friendly application for managing and uninstalling programs on Windows</strong></p>
   
