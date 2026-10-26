@@ -5,6 +5,7 @@ $root = $PSScriptRoot
 $requiredFiles = @(
     "main.py",
     "version_info.txt",
+    "UninstallerTool.spec",
     "assets\app_icon.ico"
 )
 
@@ -15,29 +16,27 @@ foreach ($file in $requiredFiles) {
     }
 }
 
-if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
-    throw "Python was not found in PATH."
+$python = "python"
+foreach ($candidate in @("$root\.venv\Scripts\python.exe", "$root\venv\Scripts\python.exe")) {
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+        $python = $candidate
+        break
+    }
 }
 
-python -c "import PyInstaller" 2>$null
+& $python -c "import PyInstaller" 2>$null
 if ($LASTEXITCODE -ne 0) {
-    throw "PyInstaller is not installed. Run: python -m pip install pyinstaller"
+    throw "PyInstaller is not installed. Run: $python -m pip install pyinstaller"
 }
 
 Push-Location $root
 try {
-    python -m PyInstaller `
-        --noconfirm `
-        --clean `
-        --onefile `
-        --windowed `
-        --uac-admin `
-        --name UninstallerTool `
-        --icon "assets\app_icon.ico" `
-        --add-data "assets\app_icon.ico;assets" `
-        --version-file "version_info.txt" `
-        "main.py"
+    & $python "tools\generate_version_info.py" --check
+    if ($LASTEXITCODE -ne 0) {
+        throw "version_info.txt is out of date. Run: $python tools\generate_version_info.py"
+    }
 
+    & $python -m PyInstaller --noconfirm --clean "UninstallerTool.spec"
     if ($LASTEXITCODE -ne 0) {
         throw "PyInstaller failed with exit code $LASTEXITCODE."
     }
