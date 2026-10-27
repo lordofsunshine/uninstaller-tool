@@ -6,19 +6,10 @@ from collections.abc import Callable
 from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 
-from app.core.processes import (
-    batch_find_running,
-    find_running_processes,
-    kill_processes,
-)
 from app.core.registry import RegistrySnapshot
 from app.elevation import is_admin, relaunch_as_admin
 from app.logging_setup import get_logger
 from app.models.program import Leftovers, Program
-from app.ui.dialogs import LeftoversDialog
-from app.workers.cleanup import CleanupThread
-from app.workers.leftovers import LeftoversThread
-from app.workers.uninstall import UninstallThread
 
 LOGGER = get_logger("uninstall-controller")
 
@@ -40,16 +31,14 @@ class UninstallController(QObject):
         self,
         parent: QWidget,
         colors_provider: Callable[[], dict],
-        snapshot_provider: Callable[[], RegistrySnapshot | None],
     ):
         super().__init__(parent)
         self._parent = parent
         self._colors_provider = colors_provider
-        self._snapshot_provider = snapshot_provider
-        self._uninstall_worker: UninstallThread | None = None
-        self._leftover_worker: LeftoversThread | None = None
-        self._cleanup_worker: CleanupThread | None = None
-        self._dialog: LeftoversDialog | None = None
+        self._uninstall_worker = None
+        self._leftover_worker = None
+        self._cleanup_worker = None
+        self._dialog = None
         self._queue: list[Program] = []
         self._budget_left = LEFTOVERS_TIMEOUT
         self._scan_started = 0.0
@@ -90,6 +79,8 @@ class UninstallController(QObject):
         self.progress_changed.emit(0, len(ready))
         self.summary_changed.emit("Starting the uninstaller…")
 
+        from app.workers.uninstall import UninstallThread
+
         worker = UninstallThread(ready, silent, self._parent)
         worker.progress.connect(self._on_progress)
         worker.stats.connect(self.stats_changed)
@@ -101,6 +92,12 @@ class UninstallController(QObject):
         return True
 
     def confirm_running(self, programs: list[Program]) -> list[Program] | None:
+        from app.core.processes import (
+            batch_find_running,
+            find_running_processes,
+            kill_processes,
+        )
+
         snapshot = batch_find_running(programs)
         ready: list[Program] = []
         for program in programs:
@@ -227,8 +224,8 @@ class UninstallController(QObject):
             return
 
         program = self._queue[0]
-        refresh_snapshot = self._leftover_snapshot is None
-        snapshot = self._leftover_snapshot or self._snapshot_provider()
+        snapshot = self._leftover_snapshot
+        refresh_snapshot = snapshot is None
         self._scan_started = time.monotonic()
         self._scan_handled = False
         self.progress_indeterminate.emit(True)
@@ -236,6 +233,8 @@ class UninstallController(QObject):
             f"Searching for leftovers: {program.name} "
             f"({int(self._budget_left)} s left)"
         )
+
+        from app.workers.leftovers import LeftoversThread
 
         worker = LeftoversThread(
             program,
@@ -301,6 +300,8 @@ class UninstallController(QObject):
         QTimer.singleShot(NEXT_SCAN_DELAY, self._scan_next)
 
     def _show_leftovers(self, result: Leftovers) -> None:
+        from app.ui.dialogs import LeftoversDialog
+
         dialog = LeftoversDialog(result, self._colors_provider(), self._parent)
         dialog.cleanup_requested.connect(
             lambda selection, current=dialog: self._start_cleanup(selection, current)
@@ -309,7 +310,7 @@ class UninstallController(QObject):
         dialog.exec()
         self._dialog = None
 
-    def _start_cleanup(self, selection: Leftovers, dialog: LeftoversDialog) -> None:
+    def _start_cleanup(self, selection: Leftovers, dialog) -> None:
         if self._cleanup_worker is not None:
             LOGGER.info("Ignored a duplicate cleanup request")
             dialog.set_busy(False)
@@ -317,6 +318,8 @@ class UninstallController(QObject):
         if not selection.has_items:
             dialog.set_busy(False)
             return
+
+        from app.workers.cleanup import CleanupThread
 
         worker = CleanupThread(selection, self._parent)
         worker.done.connect(lambda result, target=dialog: target.finish_cleanup(result))
