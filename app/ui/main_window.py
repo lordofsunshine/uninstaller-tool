@@ -20,14 +20,11 @@ from PySide6.QtWidgets import (
 )
 
 from app.config import APP_NAME, APP_VERSION, UNINSTALL_ICON
-from app.controllers import UninstallController
-from app.core.registry import RegistrySnapshot
 from app.models.program import Program, ProgramStatus
 from app.settings import AppSettings
 from app.theme.colors import DARK, system_palette
 from app.theme.style import build_style
 from app.ui.details import DetailPanel
-from app.ui.dialogs import DiskSpaceDialog, FilePreviewDialog, InfoDialog
 from app.ui.program_model import (
     ProgramDelegate,
     ProgramFilterProxy,
@@ -35,7 +32,7 @@ from app.ui.program_model import (
     ProgramModel,
 )
 from app.utils import create_svg_icon, format_size, resource_path, set_dark_title_bar
-from app.workers import LoaderThread
+from app.workers.loader import LoaderThread
 
 SEARCH_DELAY_MS = 160
 REFRESH_DELAY_MS = 1600
@@ -49,8 +46,8 @@ class UninstallerTool(QMainWindow):
         self.programs: list[Program] = []
         self._registry_programs: list[Program] = []
         self._store_programs: list[Program] = []
-        self._snapshot: RegistrySnapshot | None = None
         self._loader: LoaderThread | None = None
+        self._controller = None
         self._selected_key = ""
         self._saved_checked: set[str] = set()
         self._saved_selected = ""
@@ -65,11 +62,6 @@ class UninstallerTool(QMainWindow):
         self._load_failed = False
 
         self._settings = AppSettings()
-        self._controller = UninstallController(
-            self,
-            lambda: self.colors,
-            lambda: self._snapshot,
-        )
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
         self._search_timer.setInterval(SEARCH_DELAY_MS)
@@ -83,9 +75,10 @@ class UninstallerTool(QMainWindow):
 
         self.setup_ui()
         self.apply_theme(self.colors)
-        self._connect_controller()
         self._restore_settings()
-        self.refresh_programs()
+        self.progress.setVisible(True)
+        self.progress.setRange(0, 0)
+        QTimer.singleShot(0, self.refresh_programs)
 
     def center(self) -> None:
         screen = QApplication.primaryScreen()
@@ -221,6 +214,14 @@ class UninstallerTool(QMainWindow):
         self.setTabOrder(self.details.info_button, self.silent)
         self.setTabOrder(self.silent, self.uninstall_btn)
 
+    def _ensure_controller(self):
+        if self._controller is None:
+            from app.controllers.uninstall import UninstallController
+
+            self._controller = UninstallController(self, lambda: self.colors)
+            self._connect_controller()
+        return self._controller
+
     def _connect_controller(self) -> None:
         controller = self._controller
         controller.summary_changed.connect(self.set_summary)
@@ -262,7 +263,6 @@ class UninstallerTool(QMainWindow):
         self._registry_programs = []
         self._store_programs = []
         self.programs = []
-        self._snapshot = None
         self._selected_key = ""
         self._base_summary = ""
         self._load_failed = False
@@ -275,7 +275,6 @@ class UninstallerTool(QMainWindow):
         worker = LoaderThread(self)
         worker.registry_loaded.connect(self._on_registry_loaded)
         worker.store_loaded.connect(self._on_store_loaded)
-        worker.snapshot_ready.connect(self._on_snapshot_ready)
         worker.failed.connect(self._on_loader_failed)
         worker.completed.connect(self._on_loader_completed)
         worker.finished.connect(worker.deleteLater)
@@ -313,9 +312,6 @@ class UninstallerTool(QMainWindow):
         self._store_programs = list(programs)
         self._rebuild_programs()
         self._update_subtitle()
-
-    def _on_snapshot_ready(self, snapshot: RegistrySnapshot) -> None:
-        self._snapshot = snapshot
 
     def _rebuild_programs(self, initial: bool = False) -> None:
         combined: list[Program] = []
@@ -515,14 +511,14 @@ class UninstallerTool(QMainWindow):
             return
         if not self._confirm(programs):
             return
-        self._controller.uninstall(programs, self.silent.isChecked())
+        self._ensure_controller().uninstall(programs, self.silent.isChecked())
 
     def uninstall_one(self, program: Program) -> None:
         if self._loading or self._busy:
             return
         if not self._confirm([program]):
             return
-        self._controller.uninstall([program], self.silent.isChecked())
+        self._ensure_controller().uninstall([program], self.silent.isChecked())
 
     def _confirm(self, programs: list[Program]) -> bool:
         if len(programs) == 1:
@@ -539,6 +535,8 @@ class UninstallerTool(QMainWindow):
         return answer == QMessageBox.StandardButton.Yes
 
     def show_selected_info(self) -> None:
+        from app.ui.dialogs import InfoDialog
+
         program = self.details.program
         if program is None:
             index = self.view.currentIndex()
@@ -547,6 +545,8 @@ class UninstallerTool(QMainWindow):
             InfoDialog(program, self.colors, self).exec()
 
     def show_file_preview(self) -> None:
+        from app.ui.dialogs import FilePreviewDialog
+
         program = self.details.program
         if program is None:
             checked = self.checked_programs()
@@ -557,11 +557,15 @@ class UninstallerTool(QMainWindow):
         FilePreviewDialog(program, self.colors, self).exec()
 
     def show_disk_space(self) -> None:
+        from app.ui.dialogs import DiskSpaceDialog
+
         if self._busy or self._loading:
             return
         DiskSpaceDialog(self.programs, self.colors, self).exec()
 
     def _show_context_menu(self, position) -> None:
+        from app.ui.dialogs import FilePreviewDialog, InfoDialog
+
         index = self.view.indexAt(position)
         program = self.program_proxy.program_at(index)
         if program is None:
@@ -584,13 +588,14 @@ class UninstallerTool(QMainWindow):
         menu.exec(self.view.viewport().mapToGlobal(position))
 
     def closeEvent(self, event) -> None:
-        if self._controller.busy:
+        controller = self._controller
+        if controller is not None and controller.busy:
             event.ignore()
             self.set_summary(
                 "Cleaning up — the window will close when the operation finishes"
             )
             return
-        if not self._controller.shutdown():
+        if controller is not None and not controller.shutdown():
             event.ignore()
             self.set_summary("Finishing background work — try closing again shortly")
             return

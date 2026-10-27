@@ -12,7 +12,6 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 from app.config import APP_ID, APP_NAME, APP_VERSION
 from app.logging_setup import get_logger, setup_logging
 from app.paths import log_dir
-from app.theme.colors import system_palette
 from app.ui.main_window import UninstallerTool
 from app.utils import resource_path, set_dark_title_bar
 
@@ -65,7 +64,6 @@ def main() -> int:
         )
 
     window = UninstallerTool()
-    window.apply_theme(system_palette())
     app.installEventFilter(TitleBarTheme(window))
     window.show()
     with contextlib.suppress(AttributeError, RuntimeError):
