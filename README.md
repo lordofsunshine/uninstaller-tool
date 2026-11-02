@@ -11,7 +11,7 @@
   </p>
 </div>
 
-Download program (Скачать программу): https://github.com/lordofsunshine/uninstaller-tool/releases/download/v1.0.0/UninstallerTool-Setup-1.0.0.exe
+Download program (Скачать программу): https://github.com/lordofsunshine/uninstaller-tool/releases/download/v1.0.0/UninstallerTool-Setup-1.0.0.exe <br>
 Download the program for devices with limited memory (Скачать программу для устройств с малым кол-вом памяти): https://github.com/lordofsunshine/uninstaller-tool/releases/download/v1.0.0/UninstallerTool-Mini-Setup-1.0.0.exe
 ---
 
