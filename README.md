@@ -45,7 +45,7 @@ The program supports operating systems from Windows XP through Windows 11. Make 
 - **Target framework:** `net461`
 - **Setup compiler:** Inno Setup 6
 
-❕ - .NET Framework 4.6.1 is the last version that supports Windows 8 RTM.
+❕ - .NET Framework 4.6.1 is the last version that supports Windows 8 RTM.<br>
 ❕ - Microsoft Store: on Windows 8/8.1, availability depends on the PowerShell Appx module; it is unavailable on Windows 7.
 
 </details>
@@ -66,9 +66,9 @@ The program supports operating systems from Windows XP through Windows 11. Make 
 2. **.NET Framework 4.0 Full**.
 3. **KB2468871** - .NET Framework 4 update that adds support for Portable Class Library.
 
-❕ - Microsoft Store apps are not available on XP/Vista.
-❕ - WPF usually works without hardware acceleration.
-❕ - Vista RTM without SP1 is rejected by the installer.
+❕ - Microsoft Store apps are not available on XP/Vista.<br>
+❕ - WPF usually works without hardware acceleration.<br>
+❕ - Vista RTM without SP1 is rejected by the installer.<br>
 ❕ - Windows XP x64 is detected as version 5.2 and is supported.
 
 </details>

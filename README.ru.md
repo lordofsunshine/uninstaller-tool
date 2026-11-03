@@ -45,7 +45,7 @@
 - **Target framework:** `net461`
 - **Компилятор setup:** Inno Setup 6
 
-❕ -  .NET Framework 4.6.1 - последняя версия, которая поддерживает Windows 8 RTM.
+❕ -  .NET Framework 4.6.1 - последняя версия, которая поддерживает Windows 8 RTM.<br>
 ❕ -  Microsoft Store: в Windows 8/8.1 зависит от Appx-модуля PowerShell, в Windows 7 недоступен.
 
 </details>
@@ -66,9 +66,9 @@
 2. **.NET Framework 4.0 Full**.
 3. **KB2468871** - обновление .NET Framework 4 для поддержки Portable Class Library.
 
-❕ - Microsoft Store приложений на XP/Vista нет.
-❕ - WPF обычно работает без аппаратного ускорения.
-❕ - Vista RTM без SP1 отклоняется установщиком.
+❕ - Microsoft Store приложений на XP/Vista нет.<br>
+❕ - WPF обычно работает без аппаратного ускорения.<br>
+❕ - Vista RTM без SP1 отклоняется установщиком.<br>
 ❕ - Windows XP x64 определяется как 5.2 и поддерживается.
 
 </details>
