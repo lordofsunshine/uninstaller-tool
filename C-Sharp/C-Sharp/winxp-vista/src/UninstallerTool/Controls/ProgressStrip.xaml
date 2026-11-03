@@ -1,0 +1,17 @@
+<UserControl x:Class="UninstallerTool.Controls.ProgressStrip"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Height="4">
+    <Grid ClipToBounds="True" Background="Transparent">
+        <Border Background="{DynamicResource ProgressBgBrush}" CornerRadius="2" />
+        <Border x:Name="Indicator"
+                Background="{DynamicResource PrimaryBrush}"
+                CornerRadius="2"
+                HorizontalAlignment="Left"
+                Width="0">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="Shift" X="0" />
+            </Border.RenderTransform>
+        </Border>
+    </Grid>
+</UserControl>

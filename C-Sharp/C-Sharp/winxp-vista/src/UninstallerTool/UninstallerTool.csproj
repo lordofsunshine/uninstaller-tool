@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net40</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>12</LangVersion>
+    <Prefer32Bit>false</Prefer32Bit>
+    <AssemblyName>UninstallerTool</AssemblyName>
+    <RootNamespace>UninstallerTool</RootNamespace>
+    <ApplicationIcon>..\..\assets\app_icon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Deterministic>true</Deterministic>
+    <DebugType>none</DebugType>
+    <Version>1.0.0</Version>
+    <FileVersion>1.0.0.0</FileVersion>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <Company>Uninstaller Tool</Company>
+    <Product>Uninstaller Tool</Product>
+    <AssemblyTitle>Uninstaller Tool</AssemblyTitle>
+    <Description>Uninstaller Tool</Description>
+    <Copyright>MIT License</Copyright>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Bcl" Version="1.1.10" />
+    <PackageReference Include="Microsoft.Bcl.Async" Version="1.0.168" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Runtime.Serialization" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="..\..\assets\app_icon.ico" Link="Assets\app_icon.ico" />
+  </ItemGroup>
+
+</Project>

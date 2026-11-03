@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net40</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>12</LangVersion>
+    <Prefer32Bit>false</Prefer32Bit>
+    <AssemblyName>UninstallerTool.Tests</AssemblyName>
+    <RootNamespace>UninstallerTool.Tests</RootNamespace>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Bcl" Version="1.1.10" />
+    <PackageReference Include="Microsoft.Bcl.Async" Version="1.0.168" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\UninstallerTool\UninstallerTool.csproj" />
+  </ItemGroup>
+
+</Project>

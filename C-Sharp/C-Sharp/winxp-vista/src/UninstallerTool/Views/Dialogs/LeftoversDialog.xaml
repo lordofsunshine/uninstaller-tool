@@ -1,0 +1,69 @@
+<Window x:Class="UninstallerTool.Views.Dialogs.LeftoversDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Leftover Files and Entries"
+        Width="760"
+        Height="560"
+        MinWidth="520"
+        MinHeight="360"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource AppBackgroundBrush}">
+    <Window.Resources>
+        <DataTemplate x:Key="LeftoverRow">
+            <Grid Margin="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <CheckBox Grid.Column="0"
+                          Style="{StaticResource ListCheckBox}"
+                          IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                          VerticalAlignment="Center"
+                          Margin="0,0,8,0" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Text}"
+                           ToolTip="{Binding Text}"
+                           TextWrapping="Wrap"
+                           FontSize="12"
+                           VerticalAlignment="Center" />
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="TitleLabel" Grid.Row="0" Text="Found leftover items:" Style="{StaticResource SectionTitleText}" />
+
+        <ScrollViewer Grid.Row="1"
+                      Margin="0,14,0,0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="Sections" />
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2">
+            <TextBlock Text="Uncheck items you want to keep. Registry keys are backed up as .reg files before removal."
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       Margin="0,12,0,0" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                <Button x:Name="CancelButton"
+                        Content="Cancel"
+                        Style="{StaticResource DialogButtonSecondary}"
+                        Click="OnCancelClick" />
+                <Button x:Name="RemoveButton"
+                        Content="Remove selected"
+                        Style="{StaticResource DialogButtonPrimary}"
+                        Margin="8,0,0,0"
+                        Click="OnRemoveClick" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>
